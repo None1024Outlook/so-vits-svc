@@ -191,10 +191,10 @@ If you are using the `fcpe` F0 Predictor, you will need to download the pre-trai
 
 ## 📊 Dataset Preparation
 
-Simply place the dataset in the `dataset_raw` directory with the following file structure:
+The path to store the data set folder needs to be written to the data_dir variable of the `config.py` file.
 
 ```
-dataset_raw
+data_dir
 ├───speaker0
 │   ├───xxx1-xxx1.wav
 │   ├───...
@@ -209,7 +209,7 @@ There are no specific restrictions on the format of the name for each audio file
 You can customize the speaker's name as showed below:
 
 ```
-dataset_raw
+data_dir
 └───suijiSUI
     ├───1.wav
     ├───...
@@ -233,7 +233,7 @@ After slicing, it is recommended to remove any audio clips that are excessively 
 ### 1. Resample to 44100Hz and mono
 
 ```shell
-python resample.py
+python resample.py --speaker speaker0
 ```
 
 #### Cautions
@@ -241,13 +241,13 @@ python resample.py
 Although this project has resample.py scripts for resampling, mono and loudness matching, the default loudness matching is to match to 0db. This can cause damage to the sound quality. While python's loudness matching package pyloudnorm does not limit the level, this can lead to sonic boom. Therefore, it is recommended to consider using professional sound processing software, such as `adobe audition` for loudness matching. If you are already using other software for loudness matching, add the parameter `-skip_loudnorm` to the run command:
 
 ```shell
-python resample.py --skip_loudnorm
+python resample.py --skip_loudnorm --speaker speaker0
 ```
 
 ### 2. Automatically split the dataset into training and validation sets, and generate configuration files.
 
 ```shell
-python preprocess_flist_config.py --speech_encoder vec768l12
+python preprocess_flist_config.py --speech_encoder vec768l12 --speaker speaker0
 ```
 
 speech_encoder has the following options
@@ -270,7 +270,7 @@ If the speech_encoder argument is omitted, the default value is `vec768l12`
 Add `--vol_aug` if you want to enable loudness embedding:
 
 ```shell
-python preprocess_flist_config.py --speech_encoder vec768l12 --vol_aug
+python preprocess_flist_config.py --speech_encoder vec768l12 --vol_aug --speaker speaker0
 ```
 
 After enabling loudness embedding, the trained model will match the loudness of the input source; otherwise, it will match the loudness of the training set.
@@ -307,7 +307,7 @@ nsf-snake-hifigan
 ### 3. Generate hubert and f0
 
 ```shell
-python preprocess_hubert_f0.py --f0_predictor dio
+python preprocess_hubert_f0.py --f0_predictor dio --speaker speaker0
 ```
 
 f0_predictor has the following options
@@ -328,7 +328,7 @@ If the f0_predictor parameter is omitted, the default value is `rmvpe`
 If you want shallow diffusion (optional), you need to add the `--use_diff` parameter, for example:
 
 ```shell
-python preprocess_hubert_f0.py --f0_predictor dio --use_diff
+python preprocess_hubert_f0.py --f0_predictor dio --use_diff --speaker speaker0
 ```
 
 **Speed Up preprocess**
@@ -336,18 +336,18 @@ python preprocess_hubert_f0.py --f0_predictor dio --use_diff
 If your dataset is pretty large,you can increase the param `--num_processes` like that:
 
 ```shell
-python preprocess_hubert_f0.py --f0_predictor dio --num_processes 8
+python preprocess_hubert_f0.py --f0_predictor dio --num_processes 8 --speaker speaker0
 ```
 All the worker will be assigned to different GPU if you have more than one GPUs.
 
-After completing the above steps, the dataset directory will contain the preprocessed data, and the dataset_raw folder can be deleted.
+After completing the above steps, the dataset directory will contain the preprocessed data, and the data_dir folder can be deleted.
 
 ## 🏋️‍ Training
 
 ### Sovits Model
 
 ```shell
-python train.py -c configs/config.json -m 44k
+python train.py --speaker speaker0
 ```
 
 ### Diffusion Model (optional)
@@ -355,7 +355,7 @@ python train.py -c configs/config.json -m 44k
 If the shallow diffusion function is needed, the diffusion model needs to be trained. The diffusion model training method is as follows:
 
 ```shell
-python train_diff.py -c configs/diffusion.yaml
+python train_diff.py --speaker speaker0
 ```
 
 During training, the model files will be saved to `logs/44k`, and the diffusion model will be saved to `logs/44k/diffusion`
@@ -432,7 +432,7 @@ Introduction: As with the clustering scheme, the timbre leakage can be reduced, 
   First, it needs to be executed after generating hubert and f0: 
 
 ```shell
-python train_index.py -c configs/config.json
+python train_index.py --speaker speaker0
 ```
 
 The output of the model will be in `logs/44k/feature_and_index.pkl`
