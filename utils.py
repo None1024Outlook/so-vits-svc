@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import argparse
 import glob
 import json
@@ -16,6 +18,8 @@ import torch
 from scipy.io.wavfile import read
 from sklearn.cluster import MiniBatchKMeans
 from torch.nn import functional as F
+
+import configs
 
 MATPLOTLIB_FLAG = False
 
@@ -304,31 +308,48 @@ def load_wav_to_torch(full_path):
 
 
 def load_filepaths_and_text(filename, split="|"):
-  with open(filename, encoding='utf-8') as f:
+  with open(filename, encoding=configs.encoding) as f:
     filepaths_and_text = [line.strip().split(split) for line in f]
   return filepaths_and_text
 
 
 def get_hparams(init=True):
   parser = argparse.ArgumentParser()
-  parser.add_argument('-c', '--config', type=str, default="./configs/config.json",
-                      help='JSON file for configuration')
-  parser.add_argument('-m', '--model', type=str, required=True,
-                      help='Model name')
+  parser.add_argument("--speaker", type=str, default="", help="speaker name")
+  parser.add_argument('--path', type=str, default=configs.model_dir,
+                      help='')
+  parser.add_argument('--config_path', type=str, default=configs.data_dir,
+                      help='')
 
   args = parser.parse_args()
-  model_dir = os.path.join("./logs", args.model)
+  if args.speaker == "":
+    raise Exception("type speaker")
+  model_dir = os.path.join(args.path, args.speaker)
 
   if not os.path.exists(model_dir):
     os.makedirs(model_dir)
+  if not os.path.exists(os.path.join(model_dir, "G_0.pth")):
+    import shutil
+    shutil.copyfile("pretrain/G_0.pth", os.path.join(model_dir, "G_0.pth"))
+  if not os.path.exists(os.path.join(model_dir, "D_0.pth")):
+    import shutil
+    shutil.copyfile("pretrain/D_0.pth", os.path.join(model_dir, "D_0.pth"))
 
-  config_path = args.config
+  config_path = os.path.join(args.config_path, args.speaker, "configs", "config.json")
   config_save_path = os.path.join(model_dir, "config.json")
+  try:
+      with open(os.path.join(model_dir, "init"), "r") as f:
+          if "False" == f.read():
+              init = False
+  except:
+      ...
   if init:
     with open(config_path, "r") as f:
       data = f.read()
     with open(config_save_path, "w") as f:
       f.write(data)
+    with open(os.path.join(model_dir, "init"), "w") as f:
+      f.write("False")
   else:
     with open(config_save_path, "r") as f:
       data = f.read()
@@ -461,7 +482,8 @@ def change_rms(data1, sr1, data2, sr2, rate):  # 1是输入音频，2是输出�
 def train_index(spk_name,root_dir = "dataset/44k/"):  #from: RVC https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI
     n_cpu = cpu_count()
     print("The feature index is constructing.")
-    exp_dir = os.path.join(root_dir,spk_name)
+    # exp_dir = os.path.join(root_dir,spk_name)
+    exp_dir = root_dir
     listdir_res = []
     for file in os.listdir(exp_dir):
        if ".wav.soft.pt" in file:
@@ -515,6 +537,7 @@ class HParams():
   def __init__(self, **kwargs):
     for k, v in kwargs.items():
       if type(v) == dict:
+        print(v)
         v = HParams(**v)
       self[k] = v
 

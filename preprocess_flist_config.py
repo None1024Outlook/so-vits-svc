@@ -10,6 +10,8 @@ from tqdm import tqdm
 
 import diffusion.logger.utils as du
 
+import configs
+
 pattern = re.compile(r'^[\.a-zA-Z0-9_\/]+$')
 
 def get_wav_duration(file_path):
@@ -27,13 +29,21 @@ def get_wav_duration(file_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_list", type=str, default="./filelists/train.txt", help="path to train list")
-    parser.add_argument("--val_list", type=str, default="./filelists/val.txt", help="path to val list")
-    parser.add_argument("--source_dir", type=str, default="./dataset/44k", help="path to source dir")
+    parser.add_argument("--speaker", type=str, default="", help="speaker name")
+    # parser.add_argument("--train_list", type=str, default="./filelists/train.txt", help="path to train list")
+    # parser.add_argument("--val_list", type=str, default="./filelists/val.txt", help="path to val list")
+    parser.add_argument("--train_list", type=str, default=configs.data_dir, help="path to train list")
+    parser.add_argument("--val_list", type=str, default=configs.data_dir, help="path to val list")
+    parser.add_argument("--model_dir", type=str, default=configs.model_dir, help="path to val list")
+    parser.add_argument("--config_dir", type=str, default=configs.data_dir, help="path to config dir")
+    parser.add_argument("--source_dir", type=str, default=configs.data_dir, help="path to source dir")
     parser.add_argument("--speech_encoder", type=str, default="vec768l12", help="choice a speech encoder|'vec768l12','vec256l9','hubertsoft','whisper-ppg','cnhubertlarge','dphubert','whisper-ppg-large','wavlmbase+'")
     parser.add_argument("--vol_aug", action="store_true", help="Whether to use volume embedding and volume augmentation")
     parser.add_argument("--tiny", action="store_true", help="Whether to train sovits tiny")
     args = parser.parse_args()
+
+    if args.speaker == "":
+        raise Exception("type speaker")
     
     config_template =  json.load(open("configs_template/config_tiny_template.json")) if args.tiny else json.load(open("configs_template/config_template.json"))
     train = []
@@ -41,19 +51,19 @@ if __name__ == "__main__":
     idx = 0
     spk_dict = {}
     spk_id = 0
-
-    for speaker in tqdm(os.listdir(args.source_dir)):
+    while True:
+        speaker = args.speaker
         spk_dict[speaker] = spk_id
         spk_id += 1
         wavs = []
 
-        for file_name in os.listdir(os.path.join(args.source_dir, speaker)):
+        for file_name in os.listdir(os.path.join(args.source_dir, speaker, "44k")):
             if not file_name.endswith("wav"):
                 continue
             if file_name.startswith("."):
                 continue
 
-            file_path = "/".join([args.source_dir, speaker, file_name])
+            file_path = "/".join([args.source_dir, speaker, "44k", file_name])
 
             if not pattern.match(file_name):
                 logger.warning("Detected non-ASCII file name: " + file_path)
@@ -67,18 +77,26 @@ if __name__ == "__main__":
         shuffle(wavs)
         train += wavs[2:]
         val += wavs[:2]
+        break
 
     shuffle(train)
     shuffle(val)
 
-    logger.info("Writing " + args.train_list)
-    with open(args.train_list, "w") as f:
+    try:
+        os.mkdir(os.path.join(args.train_list, speaker, "filelists"))
+    except:
+        ...
+
+    train_list = os.path.join(args.train_list, speaker, "filelists", "train.txt")
+    logger.info("Writing " + train_list)
+    with open(train_list, "w") as f:
         for fname in tqdm(train):
             wavpath = fname
             f.write(wavpath + "\n")
 
-    logger.info("Writing " + args.val_list)
-    with open(args.val_list, "w") as f:
+    val_list = os.path.join(args.val_list, speaker, "filelists", "val.txt")
+    logger.info("Writing " + val_list)
+    with open(val_list, "w") as f:
         for fname in tqdm(val):
             wavpath = fname
             f.write(wavpath + "\n")
@@ -87,6 +105,10 @@ if __name__ == "__main__":
     d_config_template = du.load_config("configs_template/diffusion_template.yaml")
     d_config_template["model"]["n_spk"] = spk_id
     d_config_template["data"]["encoder"] = args.speech_encoder
+    d_config_template["data"]["training_files"] = train_list
+    d_config_template["data"]["validation_files"] = val_list
+    diffmodel_path = os.path.join(args.model_dir, speaker, "diffusion")
+    d_config_template["env"]["expdir"] = diffmodel_path
     d_config_template["spk"] = spk_dict
     
     config_template["spk"] = spk_dict
@@ -106,14 +128,24 @@ if __name__ == "__main__":
         config_template["model"]["ssl_dim"] = config_template["model"]["filter_channels"] = config_template["model"]["gin_channels"] = 1280
         d_config_template["data"]["encoder_out_channels"] = 1280
         
+    config_template["data"]["training_files"] = train_list
+    config_template["data"]["validation_files"] = val_list
+
     if args.vol_aug:
         config_template["train"]["vol_aug"] = config_template["model"]["vol_embedding"] = True
 
     if args.tiny:
         config_template["model"]["filter_channels"] = 512
 
+    try:
+        os.mkdir(os.path.join(args.train_list, speaker, "configs"))
+    except:
+        ...
+
+    config_path = os.path.join(args.config_dir, speaker, "configs", "config.json")
     logger.info("Writing to configs/config.json")
-    with open("configs/config.json", "w") as f:
+    with open(config_path, "w") as f:
         json.dump(config_template, f, indent=2)
-    logger.info("Writing to configs/diffusion.yaml")
-    du.save_config("configs/diffusion.yaml",d_config_template)
+    diffconfig_path = os.path.join(args.config_dir, speaker, "configs", "diffusion.yaml")
+    logger.info(diffconfig_path)
+    du.save_config(diffconfig_path,d_config_template)

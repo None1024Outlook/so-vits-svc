@@ -59,6 +59,7 @@ def run(rank, n_gpus, hps):
     torch.cuda.set_device(rank)
     collate_fn = TextAudioCollate()
     all_in_mem = hps.train.all_in_mem   # If you have enough memory, turn on this option to avoid disk IO and speed up training.
+    print(hps.data.training_files)
     train_dataset = TextAudioSpeakerLoader(hps.data.training_files, hps, all_in_mem=all_in_mem)
     num_workers = 5 if multiprocessing.cpu_count() > 4 else multiprocessing.cpu_count()
     if all_in_mem:
@@ -130,6 +131,8 @@ def run(rank, n_gpus, hps):
         # update learning rate
         scheduler_g.step()
         scheduler_d.step()
+
+        print(f"=== Global Step: {global_step + 1} ===")
 
 
 def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loaders, logger, writers):

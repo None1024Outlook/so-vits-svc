@@ -1,4 +1,4 @@
-import argparse
+import argparse, os
 
 import torch
 from loguru import logger
@@ -10,28 +10,31 @@ from diffusion.solver import train
 from diffusion.unit2mel import Unit2Mel
 from diffusion.vocoder import Vocoder
 
+import configs
 
 def parse_args(args=None, namespace=None):
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-c",
-        "--config",
-        type=str,
-        required=True,
-        help="path to the config file")
+    parser.add_argument("--speaker", type=str, default="", help="speaker name")
+    parser.add_argument('--path', type=str, default=configs.data_dir,help='')
     return parser.parse_args(args=args, namespace=namespace)
 
 
 if __name__ == '__main__':
     # parse commands
     cmd = parse_args()
-    
+    if cmd.speaker == "":
+        raise Exception("type speaker")
+    config_path = os.path.join(cmd.path, cmd.speaker, "configs", "diffusion.yaml")
     # load config
-    args = utils.load_config(cmd.config)
-    logger.info(' > config:'+ cmd.config)
+    args = utils.load_config(config_path)
+    logger.info(' > config:'+ config_path)
     logger.info(' > exp:'+ args.env.expdir)
-    
+    if not os.path.exists(args.env.expdir):
+        os.makedirs(args.env.expdir)
+    if not os.path.exists(os.path.join(args.env.expdir, "model_0.pt")):
+        import shutil
+        shutil.copyfile("pretrain/model_0.pt", os.path.join(args.env.expdir, "model_0.pt"))
     # load vocoder
     vocoder = Vocoder(args.vocoder.type, args.vocoder.ckpt, device=args.device)
     

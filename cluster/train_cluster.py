@@ -10,6 +10,8 @@ import tqdm
 from kmeans import KMeansGPU
 from sklearn.cluster import KMeans, MiniBatchKMeans
 
+from .. import configs
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,11 @@ def train_cluster(in_dir, n_clusters, use_minibatch=True, verbose=False,use_gpu=
     logger.info(f"Loading features from {in_dir}")
     features = []
     nums = 0
-    for path in tqdm.tqdm(in_dir.glob("*.soft.pt")):
+    tmp = []
+    for i in os.listdir(in_dir):
+        if i[-8:] == ".soft.pt":
+            tmp.append(os.path.join(args.source_dir, args.speaker, "44k", i))
+    for path in tqdm.tqdm(tmp):
     # for name in os.listdir(in_dir):
     #     path="%s/%s"%(in_dir,name)
         features.append(torch.load(path,map_location="cpu").squeeze(0).numpy().T)
@@ -53,31 +59,34 @@ def train_cluster(in_dir, n_clusters, use_minibatch=True, verbose=False,use_gpu=
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=Path, default="./dataset/44k",
-                        help='path of training data directory')
-    parser.add_argument('--output', type=Path, default="logs/44k",
-                        help='path of model output directory')
     parser.add_argument('--gpu',action='store_true', default=False ,
                         help='to use GPU')
-
+    parser.add_argument("--speaker", type=str, default="", help="speaker name")
+    parser.add_argument("--source_dir", type=str, default=configs.data_dir, help="path to source dir")
+    parser.add_argument("--config_dir", type=str, default=configs.data_dir, help="path to config dir")
+    parser.add_argument("--model_dir", type=str, default=configs.model_dir, help="path to val list")
 
     args = parser.parse_args()
 
-    checkpoint_dir = args.output
-    dataset = args.dataset
+    if args.speaker == "":
+        raise Exception("type speaker")
+
+    checkpoint_dir = os.path.join(args.model_dir, args.speaker)
+    dataset = os.path.join(args.source_dir, args.speaker, "44k")
     use_gpu = args.gpu
     n_clusters = 10000
     
     ckpt = {}
-    for spk in os.listdir(dataset):
-        if os.path.isdir(dataset/spk):
-            print(f"train kmeans for {spk}...")
-            in_dir = dataset/spk
-            x = train_cluster(in_dir, n_clusters,use_minibatch=False,verbose=False,use_gpu=use_gpu)
-            ckpt[spk] = x
+    if os.path.isdir(dataset):
+        print(f"train kmeans for {args.speaker}...")
+        in_dir = dataset
+        x = train_cluster(in_dir, n_clusters,use_minibatch=False,verbose=False,use_gpu=use_gpu)
+        ckpt[args.speaker] = x
 
-    checkpoint_path = checkpoint_dir / f"kmeans_{n_clusters}.pt"
-    checkpoint_path.parent.mkdir(exist_ok=True, parents=True)
+    checkpoint_path = os.path.join(checkpoint_dir, f"kmeans_{n_clusters}.pt")
+    # checkpoint_path.parent.mkdir(exist_ok=True, parents=True)
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
     torch.save(
         ckpt,
         checkpoint_path,

@@ -9,6 +9,7 @@ import numpy as np
 from rich.progress import track
 from scipy.io import wavfile
 
+import configs
 
 def load_wav(wav_path):
     return librosa.load(wav_path, sr=None)
@@ -39,11 +40,13 @@ def save_wav_to_path(wav, save_path, sr):
 
 def process(item):
     spkdir, wav_name, args = item
-    speaker = spkdir.replace("\\", "/").split("/")[-1]
+    # speaker = spkdir.replace("\\", "/").split("/")[-1]
+    speaker = args.speaker
 
     wav_path = os.path.join(args.in_dir, speaker, wav_name)
+    out_dir2 = os.path.join(args.out_dir2, speaker, "44k")
     if os.path.exists(wav_path) and '.wav' in wav_path:
-        os.makedirs(os.path.join(args.out_dir2, speaker), exist_ok=True)
+        os.makedirs(os.path.join(out_dir2), exist_ok=True)
 
         wav, sr = load_wav(wav_path)
         wav, _ = trim_wav(wav)
@@ -53,7 +56,7 @@ def process(item):
         if not args.skip_loudnorm:
             resampled_wav /= np.max(np.abs(resampled_wav))
 
-        save_path2 = os.path.join(args.out_dir2, speaker, wav_name)
+        save_path2 = os.path.join(out_dir2, wav_name)
         save_wav_to_path(resampled_wav, save_path2, args.sr2)
 
 
@@ -76,22 +79,26 @@ def process_all_speakers():
 def process_all_speakers():
     process_count = 30 if os.cpu_count() > 60 else (os.cpu_count() - 2 if os.cpu_count() > 4 else 1)
     with ProcessPoolExecutor(max_workers=process_count) as executor:
-        for speaker in speakers:
-            spk_dir = os.path.join(args.in_dir, speaker)
-            if os.path.isdir(spk_dir):
-                print(spk_dir)
-                futures = [executor.submit(process, (spk_dir, i, args)) for i in os.listdir(spk_dir) if i.endswith("wav")]
-                for _ in track(concurrent.futures.as_completed(futures), total=len(futures), description="resampling:"):
-                    pass
+        speaker = args.speaker
+        spk_dir = os.path.join(args.in_dir, speaker)
+        if os.path.isdir(spk_dir):
+            print(spk_dir)
+            futures = [executor.submit(process, (spk_dir, i, args)) for i in os.listdir(spk_dir) if i.endswith("wav")]
+            for _ in track(concurrent.futures.as_completed(futures), total=len(futures), description="resampling:"):
+                pass
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--speaker", type=str, default="", help="speaker name")
     parser.add_argument("--sr2", type=int, default=44100, help="sampling rate")
-    parser.add_argument("--in_dir", type=str, default="./dataset_raw", help="path to source dir")
-    parser.add_argument("--out_dir2", type=str, default="./dataset/44k", help="path to target dir")
+    parser.add_argument("--in_dir", type=str, default=configs.data_dir, help="path to source dir")
+    parser.add_argument("--out_dir2", type=str, default=configs.data_dir, help="path to target dir")
     parser.add_argument("--skip_loudnorm", action="store_true", help="Skip loudness matching if you have done it")
     args = parser.parse_args()
+
+    if args.speaker == "":
+        raise Exception("type speaker name")
 
     print(f"CPU count: {cpu_count()}")
     speakers = os.listdir(args.in_dir)

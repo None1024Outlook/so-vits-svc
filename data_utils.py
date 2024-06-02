@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import random
 
@@ -45,7 +47,20 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
             self.cache = [self.get_audio(p[0]) for p in self.audiopaths]
 
     def get_audio(self, filename):
+    #     parser = argparse.ArgumentParser()
+    #     parser.add_argument("--speaker", type=str, default="", help="speaker name")
+    #     parser.add_argument('--path', type=str, default="../../Models/So-VITS-SVC",
+    #                         help='')
+    #     parser.add_argument('--config_path', type=str, default="../../Datas/So-VITS-SVC",
+    #                         help='')
+    #     parser.add_argument('-m', '--model', type=str, default="44k",
+    #                         help='')
+    #     args = parser.parse_args()
+    #     if args.speaker == "":
+    #         raise Exception("type speaker")
+
         filename = filename.replace("\\", "/")
+        # filename = ""
         audio, sampling_rate = load_wav_to_torch(filename)
         if sampling_rate != self.sampling_rate:
             raise ValueError(
@@ -66,7 +81,8 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
             torch.save(spec, spec_filename)
 
         spk = filename.split("/")[-2]
-        spk = torch.LongTensor([self.spk_map[spk]])
+        # spk = torch.LongTensor([self.spk_map[spk]])
+        spk = torch.LongTensor([0])
 
         f0, uv = np.load(filename + ".f0.npy",allow_pickle=True)
         

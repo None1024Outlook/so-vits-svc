@@ -21,8 +21,39 @@ from modules.mel_processing import spectrogram_torch
 logging.getLogger("numba").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
-hps = utils.get_hparams_from_file("configs/config.json")
-dconfig = du.load_config("configs/diffusion.yaml")
+# hps = utils.get_hparams_from_file("configs/config.json")
+# dconfig = du.load_config("configs/diffusion.yaml")
+# sampling_rate = hps.data.sampling_rate
+# hop_length = hps.data.hop_length
+# speech_encoder = hps["model"]["speech_encoder"]
+parser = argparse.ArgumentParser()
+parser.add_argument("--speaker", type=str, default="", help="speaker name")
+parser.add_argument('-d', '--device', type=str, default=None)
+# parser.add_argument(
+#     "--in_dir", type=str, default="dataset/44k", help="path to input dir"
+# )
+parser.add_argument(
+    "--in_dir", type=str, default="../../Datas/So-VITS-SVC", help="path to input dir"
+)
+parser.add_argument(
+    '--use_diff',action='store_true', help='Whether to use the diffusion model'
+)
+parser.add_argument(
+    '--f0_predictor', type=str, default="rmvpe", help='Select F0 predictor, can select crepe,pm,dio,harvest,rmvpe,fcpe|default: pm(note: crepe is original F0 using mean filter)'
+)
+parser.add_argument(
+    '--num_processes', type=int, default=1, help='You are advised to set the number of processes to the same as the number of CPU cores'
+)
+args = parser.parse_args()
+
+if args.speaker == "":
+    raise Exception("type speaker")
+    
+args.in_dir = os.path.join(args.in_dir, args.speaker)
+config_path = os.path.join(args.in_dir, "configs", "config.json")
+diffconfig_path = os.path.join(args.in_dir, "configs", "diffusion.yaml")
+hps = utils.get_hparams_from_file(config_path)
+dconfig = du.load_config(diffconfig_path)
 sampling_rate = hps.data.sampling_rate
 hop_length = hps.data.hop_length
 speech_encoder = hps["model"]["speech_encoder"]
@@ -128,21 +159,6 @@ def parallel_process(filenames, num_processes, f0p, diff, mel_extractor, device)
             task.result()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--device', type=str, default=None)
-    parser.add_argument(
-        "--in_dir", type=str, default="dataset/44k", help="path to input dir"
-    )
-    parser.add_argument(
-        '--use_diff',action='store_true', help='Whether to use the diffusion model'
-    )
-    parser.add_argument(
-        '--f0_predictor', type=str, default="rmvpe", help='Select F0 predictor, can select crepe,pm,dio,harvest,rmvpe,fcpe|default: pm(note: crepe is original F0 using mean filter)'
-    )
-    parser.add_argument(
-        '--num_processes', type=int, default=1, help='You are advised to set the number of processes to the same as the number of CPU cores'
-    )
-    args = parser.parse_args()
     f0p = args.f0_predictor
     device = args.device
     if device is None:
@@ -161,7 +177,7 @@ if __name__ == "__main__":
         print("Loaded Mel Extractor.")
     else:
         mel_extractor = None
-    filenames = glob(f"{args.in_dir}/*/*.wav", recursive=True)  # [:10]
+    filenames = glob(f"{args.in_dir}/44k/*.wav", recursive=True)  # [:10]
     shuffle(filenames)
     mp.set_start_method("spawn", force=True)
 
